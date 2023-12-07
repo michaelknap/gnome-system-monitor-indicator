@@ -1,0 +1,8 @@
+{
+  "uuid": "system-monitor-indicator@mknap.com",
+  "name": "System Monitor Tray Indicator",
+  "description": "Displays CPU and Memory usage on the top bar.",
+  "shell-version": ["45"],
+  "url": "https://github.com/michaelknap/gnome-system-monitor-indicator",
+  "version": 1
+}
