@@ -1,6 +1,6 @@
 [![Available on GNOME Extensions](https://img.shields.io/badge/Available%20on-GNOME%20Extensions-green)](https://extensions.gnome.org/extension/6586/system-monitor-tray-indicator/)
 
-# ![Icon](./screenshots/icon-sm.png) Minimalist System Monitor for GNOME Shell
+# ![Icon](./screenshots/icon-sm.png) System Monitor Tray Indicator for GNOME Shell
 
 ## Overview
 This is a minimalist system monitor extension for GNOME Shell. It displays CPU, Memory, and Swap usage right in your GNOME Shell top bar. 
