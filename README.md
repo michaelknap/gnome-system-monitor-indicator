@@ -10,6 +10,7 @@ This is a minimalist system monitor extension for GNOME Shell. It displays CPU, 
 ## Compatibility
 
 Known supported versions of GNOME:
+- 46
 - 45
 
 It may be compatible with older versions, but no tests have been conducted to confirm this.
@@ -24,7 +25,6 @@ Or by downloading this repository.
 cd /tmp
 git clone https://github.com/michaelknap/gnome-system-monitor-indicator.git
 cd gnome-system-monitor-indicator
-chmod +x install.sh
 ./install.sh
 ```
 Once done, manually restart the GNOME Shell for the changes to take effect. On **X** you can do this by pressing 
