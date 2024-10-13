@@ -4,7 +4,7 @@
  * Author: Michael Knap
  * Description: Displays CPU and Memory usage on the top bar.
  * Version: 2.0
- * GNOME Shell Version: 45, 46 (Tested) 
+ * GNOME Shell Version: 45, 46, 47 (Tested) 
  * 
  * License: MIT License
  */
