@@ -10,6 +10,8 @@ This is a minimalist system monitor extension for GNOME Shell. It displays CPU, 
 ## Compatibility
 
 Known supported versions of GNOME:
+- 49
+- 48
 - 47
 - 46
 - 45
