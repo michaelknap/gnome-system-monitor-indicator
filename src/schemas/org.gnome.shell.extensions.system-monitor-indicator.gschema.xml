@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.system-monitor-indicator"
+          path="/org/gnome/shell/extensions/system-monitor-indicator/">
+
+    <key name="decimal-places" type="i">
+      <default>2</default>
+      <range min="0" max="2"/>
+      <summary>Decimal places</summary>
+      <description>Number of decimal places to show for percentages.</description>
+    </key>
+
+  </schema>
+</schemalist>

@@ -3,7 +3,7 @@
  *
  * Author: Michael Knap
  * Description: Displays CPU, Memory and Swap usage on the top bar.
- * Version: 4.0
+ * Version: 5.0
  *
  * License: MIT License
  */
@@ -24,8 +24,30 @@ const UPDATE_INTERVAL_SECONDS = 1;
 
 const SystemMonitorIndicator = GObject.registerClass(
 class SystemMonitorIndicator extends PanelMenu.Button {
-    _init() {
+    _init(settings) {
         super._init(0.0, 'System Monitor Indicator', false);
+
+        this._settings = settings;
+        this._settingsChangedId = 0;
+        this._decimalPlaces = 2;
+
+        if (this._settings) {
+            this._decimalPlaces = this._clampDecimalPlaces(
+                this._settings.get_int('decimal-places')
+            );
+
+            this._settingsChangedId = this._settings.connect(
+                'changed::decimal-places',
+                () => {
+                    this._decimalPlaces = this._clampDecimalPlaces(
+                        this._settings.get_int('decimal-places')
+                    );
+
+                    // Refresh immediately so the new formatting is applied.
+                    this._updateMetrics();
+                }
+            );
+        }
 
         this._box = new St.BoxLayout();
 
@@ -57,6 +79,17 @@ class SystemMonitorIndicator extends PanelMenu.Button {
         this._timeoutId = 0;
 
         this._scheduleUpdate(true);
+    }
+
+    _clampDecimalPlaces(value) {
+        if (typeof value !== 'number' || Number.isNaN(value))
+            return 2;
+        return Math.max(0, Math.min(2, Math.trunc(value)));
+    }
+
+    _formatPercent(value) {
+        // value is expected to be a number (percentage) in [0, 100].
+        return value.toFixed(this._decimalPlaces);
     }
 
     _scheduleUpdate(first = false) {
@@ -123,7 +156,7 @@ class SystemMonitorIndicator extends PanelMenu.Button {
 
                 if (totalDiff > 0) {
                     const usage = (usedDiff / totalDiff) * 100;
-                    this._cpuLabel.text = `CPU: ${usage.toFixed(2)}%`;
+                    this._cpuLabel.text = `CPU: ${this._formatPercent(usage)}%`;
                 }
 
                 this._prevTotal = currentCpuTotal;
@@ -180,7 +213,7 @@ class SystemMonitorIndicator extends PanelMenu.Button {
             if (memTotal != null && memAvail != null) {
                 const memUsed  = memTotal - memAvail;
                 const memUsage = (memUsed / memTotal) * 100;
-                this._memLabel.text = `Mem: ${memUsage.toFixed(2)}%`;
+                this._memLabel.text = `Mem: ${this._formatPercent(memUsage)}%`;
             } else {
                 this._memLabel.text = 'Mem: --%';
             }
@@ -188,7 +221,7 @@ class SystemMonitorIndicator extends PanelMenu.Button {
             if (swapTotal != null && swapTotal > 0 && swapFree != null) {
                 const swapUsed  = swapTotal - swapFree;
                 const swapUsage = (swapUsed / swapTotal) * 100;
-                this._swapLabel.text = `Swap: ${swapUsage.toFixed(2)}%`;
+                this._swapLabel.text = `Swap: ${this._formatPercent(swapUsage)}%`;
                 this._swapLabel.show();
             } else {
                 this._swapLabel.text = 'Swap: --%';
@@ -200,6 +233,13 @@ class SystemMonitorIndicator extends PanelMenu.Button {
     }
 
     destroy() {
+        if (this._settingsChangedId && this._settings) {
+            this._settings.disconnect(this._settingsChangedId);
+            this._settingsChangedId = 0;
+        }
+
+        this._settings = null;
+
         if (this._timeoutId) {
             GLib.source_remove(this._timeoutId);
             this._timeoutId = 0;
@@ -211,7 +251,8 @@ class SystemMonitorIndicator extends PanelMenu.Button {
 
 export default class SystemMonitorExtension extends Extension {
     enable() {
-        this._indicator = new SystemMonitorIndicator();
+        this._settings = this.getSettings();
+        this._indicator = new SystemMonitorIndicator(this._settings);
         Main.panel.addToStatusArea(this.uuid, this._indicator);
     }
 
@@ -220,5 +261,7 @@ export default class SystemMonitorExtension extends Extension {
             this._indicator.destroy();
             this._indicator = null;
         }
+
+        this._settings = null;
     }
 }

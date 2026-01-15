@@ -2,6 +2,7 @@
   "uuid": "system-monitor-indicator@mknap.com",
   "name": "System Monitor Tray Indicator",
   "description": "Displays CPU, Memory and Swap usage on the top bar.",
+  "settings-schema": "org.gnome.shell.extensions.system-monitor-indicator",
   "shell-version": [
     "45",
     "46",
@@ -10,5 +11,5 @@
     "49"
   ],
   "url": "https://github.com/michaelknap/gnome-system-monitor-indicator",
-  "version": 4
+  "version": 5
 }
