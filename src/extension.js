@@ -3,7 +3,7 @@
  *
  * Author: Michael Knap
  * Description: Displays CPU, Memory and Swap usage on the top bar.
- * Version: 5.0
+ * Version: 6.0
  *
  * License: MIT License
  */
@@ -29,12 +29,16 @@ class SystemMonitorIndicator extends PanelMenu.Button {
 
         this._settings = settings;
         this._settingsChangedId = 0;
+        this._cpuUsageSettingsChangedId = 0;
         this._decimalPlaces = 2;
+        this._show_cpu_usage = true;
 
         if (this._settings) {
             this._decimalPlaces = this._clampDecimalPlaces(
                 this._settings.get_int('decimal-places')
             );
+
+            this._show_cpu_usage = this._settings.get_boolean('show-cpu-usage');
 
             this._settingsChangedId = this._settings.connect(
                 'changed::decimal-places',
@@ -44,6 +48,14 @@ class SystemMonitorIndicator extends PanelMenu.Button {
                     );
 
                     // Refresh immediately so the new formatting is applied.
+                    this._updateMetrics();
+                }
+            );
+
+            this._cpuUsageSettingsChangedId = this._settings.connect(
+                'changed::show-cpu-usage',
+                () => {
+                    this._show_cpu_usage = this._settings.get_boolean('show-cpu-usage');
                     this._updateMetrics();
                 }
             );
@@ -117,6 +129,10 @@ class SystemMonitorIndicator extends PanelMenu.Button {
     }
 
     _updateCpuUsage() {
+        this._cpuLabel.visible = this._show_cpu_usage;
+        if (!this._show_cpu_usage) {
+            return;
+        }
         try {
             const file = Gio.File.new_for_path('/proc/stat');
             const [, content] = file.load_contents(null);
@@ -236,6 +252,11 @@ class SystemMonitorIndicator extends PanelMenu.Button {
         if (this._settingsChangedId && this._settings) {
             this._settings.disconnect(this._settingsChangedId);
             this._settingsChangedId = 0;
+        }
+
+        if (this._cpuUsageSettingsChangedId && this._settings) {
+            this._settings.disconnect(this._cpuUsageSettingsChangedId);
+            this._cpuUsageSettingsChangedId = 0;
         }
 
         this._settings = null;

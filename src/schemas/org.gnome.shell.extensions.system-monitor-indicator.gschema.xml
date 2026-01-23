@@ -10,5 +10,11 @@
       <description>Number of decimal places to show for percentages.</description>
     </key>
 
+    <key name="show-cpu-usage" type="b">
+      <default>true</default>
+      <summary>Show CPU usage</summary>
+      <description>Whether to show CPU usage in the top bar.</description>
+    </key>
+
   </schema>
 </schemalist>
