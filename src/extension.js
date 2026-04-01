@@ -3,7 +3,7 @@
  *
  * Author: Michael Knap
  * Description: Displays CPU, Memory and Swap usage on the top bar.
- * Version: 5.0
+ * Version: 6.0
  *
  * License: MIT License
  */
@@ -21,6 +21,10 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import { Extension }  from 'resource:///org/gnome/shell/extensions/extension.js';
 
 const UPDATE_INTERVAL_SECONDS = 1;
+const SETTINGS_KEY_DECIMAL_PLACES = 'decimal-places';
+const SETTINGS_KEY_SHOW_CPU = 'show-cpu';
+const SETTINGS_KEY_SHOW_MEMORY = 'show-memory';
+const SETTINGS_KEY_SHOW_SWAP = 'show-swap';
 
 const SystemMonitorIndicator = GObject.registerClass(
 class SystemMonitorIndicator extends PanelMenu.Button {
@@ -30,24 +34,10 @@ class SystemMonitorIndicator extends PanelMenu.Button {
         this._settings = settings;
         this._settingsChangedId = 0;
         this._decimalPlaces = 2;
-
-        if (this._settings) {
-            this._decimalPlaces = this._clampDecimalPlaces(
-                this._settings.get_int('decimal-places')
-            );
-
-            this._settingsChangedId = this._settings.connect(
-                'changed::decimal-places',
-                () => {
-                    this._decimalPlaces = this._clampDecimalPlaces(
-                        this._settings.get_int('decimal-places')
-                    );
-
-                    // Refresh immediately so the new formatting is applied.
-                    this._updateMetrics();
-                }
-            );
-        }
+        this._showCpu = true;
+        this._showMemory = true;
+        this._showSwap = true;
+        this._swapAvailable = false;
 
         this._box = new St.BoxLayout();
 
@@ -78,7 +68,17 @@ class SystemMonitorIndicator extends PanelMenu.Button {
         this._prevTotal = 0;
         this._timeoutId = 0;
 
-        this._scheduleUpdate(true);
+        if (this._settings) {
+            this._syncSettings(true);
+            this._settingsChangedId = this._settings.connect('changed', () => {
+                this._syncSettings();
+            });
+        } else {
+            this._syncLabelVisibility();
+        }
+
+        this._updateMetrics();
+        this._scheduleUpdate();
     }
 
     _clampDecimalPlaces(value) {
@@ -92,14 +92,62 @@ class SystemMonitorIndicator extends PanelMenu.Button {
         return value.toFixed(this._decimalPlaces);
     }
 
-    _scheduleUpdate(first = false) {
+    _resetCpuBaseline() {
+        this._prevUsed = 0;
+        this._prevTotal = 0;
+    }
+
+    _syncSettings(initial = false) {
+        const previousShowCpu = this._showCpu;
+
+        this._decimalPlaces = this._clampDecimalPlaces(
+            this._settings.get_int(SETTINGS_KEY_DECIMAL_PLACES)
+        );
+        this._showCpu = this._settings.get_boolean(SETTINGS_KEY_SHOW_CPU);
+        this._showMemory = this._settings.get_boolean(SETTINGS_KEY_SHOW_MEMORY);
+        this._showSwap = this._settings.get_boolean(SETTINGS_KEY_SHOW_SWAP);
+
+        if (!this._showCpu || this._showCpu !== previousShowCpu) {
+            this._resetCpuBaseline();
+            this._cpuLabel.text = 'CPU: --%';
+        }
+
+        if (!this._showMemory)
+            this._memLabel.text = 'Mem: --%';
+
+        if (!this._showSwap) {
+            this._swapAvailable = false;
+            this._swapLabel.text = 'Swap: --%';
+        }
+
+        this._syncLabelVisibility();
+
+        if (!initial)
+            this._updateMetrics();
+    }
+
+    _syncLabelVisibility() {
+        if (this._showCpu)
+            this._cpuLabel.show();
+        else
+            this._cpuLabel.hide();
+
+        if (this._showMemory)
+            this._memLabel.show();
+        else
+            this._memLabel.hide();
+
+        if (this._showSwap && this._swapAvailable)
+            this._swapLabel.show();
+        else
+            this._swapLabel.hide();
+    }
+
+    _scheduleUpdate() {
         if (this._timeoutId) {
             GLib.source_remove(this._timeoutId);
             this._timeoutId = 0;
         }
-
-        if (!first)
-            this._updateMetrics();
 
         this._timeoutId = GLib.timeout_add_seconds(
             GLib.PRIORITY_DEFAULT_IDLE,
@@ -112,8 +160,11 @@ class SystemMonitorIndicator extends PanelMenu.Button {
     }
 
     _updateMetrics() {
-        this._updateCpuUsage();
-        this._updateMemoryUsage();
+        if (this._showCpu)
+            this._updateCpuUsage();
+
+        if (this._showMemory || this._showSwap)
+            this._updateMemoryUsage();
     }
 
     _updateCpuUsage() {
@@ -144,7 +195,7 @@ class SystemMonitorIndicator extends PanelMenu.Button {
                 currentCpuUsed  = currentCpuTotal - idle - iowait;
 
                 // First run: just prime baseline
-                if (!this._prevTotal || !this._prevUsed) {
+                if (this._prevTotal === 0) {
                     this._prevTotal = currentCpuTotal;
                     this._prevUsed  = currentCpuUsed;
                     this._cpuLabel.text = 'CPU: --%';
@@ -176,6 +227,8 @@ class SystemMonitorIndicator extends PanelMenu.Button {
             const decoder = new TextDecoder('utf-8');
             const text = decoder.decode(content);
             const lines = text.split('\n');
+            const needsMemory = this._showMemory;
+            const needsSwap = this._showSwap;
 
             let memTotal    = null;
             let memAvail    = null;
@@ -196,37 +249,48 @@ class SystemMonitorIndicator extends PanelMenu.Button {
 
                 switch (key) {
                     case 'MemTotal':
-                        memTotal = value;
+                        if (needsMemory)
+                            memTotal = value;
                         break;
                     case 'MemAvailable':
-                        memAvail = value;
+                        if (needsMemory)
+                            memAvail = value;
                         break;
                     case 'SwapTotal':
-                        swapTotal = value;
+                        if (needsSwap)
+                            swapTotal = value;
                         break;
                     case 'SwapFree':
-                        swapFree = value;
+                        if (needsSwap)
+                            swapFree = value;
                         break;
+                }
+
+                if ((!needsMemory || (memTotal != null && memAvail != null)) &&
+                    (!needsSwap || (swapTotal != null && swapFree != null))) {
+                    break;
                 }
             }
 
-            if (memTotal != null && memAvail != null) {
+            if (needsMemory && memTotal != null && memAvail != null) {
                 const memUsed  = memTotal - memAvail;
                 const memUsage = (memUsed / memTotal) * 100;
                 this._memLabel.text = `Mem: ${this._formatPercent(memUsage)}%`;
-            } else {
+            } else if (needsMemory) {
                 this._memLabel.text = 'Mem: --%';
             }
 
-            if (swapTotal != null && swapTotal > 0 && swapFree != null) {
+            if (needsSwap && swapTotal != null && swapTotal > 0 && swapFree != null) {
                 const swapUsed  = swapTotal - swapFree;
                 const swapUsage = (swapUsed / swapTotal) * 100;
+                this._swapAvailable = true;
                 this._swapLabel.text = `Swap: ${this._formatPercent(swapUsage)}%`;
-                this._swapLabel.show();
-            } else {
+            } else if (needsSwap) {
+                this._swapAvailable = false;
                 this._swapLabel.text = 'Swap: --%';
-                this._swapLabel.hide();
             }
+
+            this._syncLabelVisibility();
         } catch (e) {
             logError(e, 'System Monitor Indicator: failed to update memory usage');
         }

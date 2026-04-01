@@ -4,12 +4,14 @@
 
 ## Overview
 This is a minimalist system monitor extension for GNOME Shell. It displays CPU, RAM, and Swap usage right in your GNOME Shell top bar. 
+You can also enable or disable each metric or lower the decimal precision from the extension preferences.
 
 ![Screenshot](./screenshots/screenshot.png)
 
 ## Compatibility
 
 Known supported versions of GNOME:
+- 50
 - 49
 - 48
 - 47

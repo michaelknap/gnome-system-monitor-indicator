@@ -3,6 +3,24 @@
   <schema id="org.gnome.shell.extensions.system-monitor-indicator"
           path="/org/gnome/shell/extensions/system-monitor-indicator/">
 
+    <key name="show-cpu" type="b">
+      <default>true</default>
+      <summary>Show CPU usage</summary>
+      <description>Whether to display CPU usage in the top bar.</description>
+    </key>
+
+    <key name="show-memory" type="b">
+      <default>true</default>
+      <summary>Show memory usage</summary>
+      <description>Whether to display memory usage in the top bar.</description>
+    </key>
+
+    <key name="show-swap" type="b">
+      <default>true</default>
+      <summary>Show swap usage</summary>
+      <description>Whether to display swap usage in the top bar.</description>
+    </key>
+
     <key name="decimal-places" type="i">
       <default>2</default>
       <range min="0" max="2"/>
