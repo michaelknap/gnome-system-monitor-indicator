@@ -20,6 +20,8 @@ import * as Main      from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import { Extension }  from 'resource:///org/gnome/shell/extensions/extension.js';
 
+Gio._promisify(Gio.File.prototype, 'load_contents_async', 'load_contents_finish');
+
 const UPDATE_INTERVAL_SECONDS = 1;
 const SETTINGS_KEY_DECIMAL_PLACES = 'decimal-places';
 const SETTINGS_KEY_SHOW_CPU = 'show-cpu';
@@ -39,6 +41,10 @@ class SystemMonitorIndicator extends PanelMenu.Button {
         this._showSwap = true;
         this._swapAvailable = false;
         this._decoder = new TextDecoder('utf-8');
+        this._cancellable = new Gio.Cancellable();
+        this._destroyed = false;
+        this._updateInProgress = false;
+        this._updatePending = false;
 
         this._box = new St.BoxLayout();
 
@@ -78,7 +84,7 @@ class SystemMonitorIndicator extends PanelMenu.Button {
             this._syncLabelVisibility();
         }
 
-        this._updateMetrics();
+        void this._updateMetrics();
         this._scheduleUpdate();
     }
 
@@ -124,7 +130,7 @@ class SystemMonitorIndicator extends PanelMenu.Button {
         this._syncLabelVisibility();
 
         if (!initial)
-            this._updateMetrics();
+            void this._updateMetrics();
     }
 
     _syncLabelVisibility() {
@@ -154,29 +160,68 @@ class SystemMonitorIndicator extends PanelMenu.Button {
             GLib.PRIORITY_DEFAULT_IDLE,
             UPDATE_INTERVAL_SECONDS,
             () => {
-                this._updateMetrics();
+                void this._updateMetrics();
                 return GLib.SOURCE_CONTINUE;
             }
         );
     }
 
-    _updateMetrics() {
-        if (this._showCpu)
-            this._updateCpuUsage();
+    async _updateMetrics() {
+        if (this._destroyed)
+            return;
 
-        if (this._showMemory || this._showSwap)
-            this._updateMemoryUsage();
+        if (this._updateInProgress) {
+            this._updatePending = true;
+            return;
+        }
+
+        this._updateInProgress = true;
+        this._updatePending = false;
+
+        try {
+            const [cpuText, memoryText] = await Promise.all([
+                this._showCpu
+                    ? this._readTextFile('/proc/stat')
+                    : Promise.resolve(null),
+                this._showMemory || this._showSwap
+                    ? this._readTextFile('/proc/meminfo')
+                    : Promise.resolve(null),
+            ]);
+
+            if (this._destroyed)
+                return;
+
+            if (cpuText !== null && this._showCpu)
+                this._updateCpuUsage(cpuText);
+
+            if (memoryText !== null && (this._showMemory || this._showSwap))
+                this._updateMemoryUsage(memoryText);
+        } catch (e) {
+            if (this._destroyed)
+                return;
+
+            if (typeof e.matches === 'function' &&
+                e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
+                return;
+            }
+
+            logError(e, 'System Monitor Indicator: failed to update metrics');
+        } finally {
+            this._updateInProgress = false;
+
+            if (this._updatePending && !this._destroyed)
+                void this._updateMetrics();
+        }
     }
 
-    _readTextFile(path) {
+    async _readTextFile(path) {
         const file = Gio.File.new_for_path(path);
-        const [, content] = file.load_contents(null);
+        const [content] = await file.load_contents_async(this._cancellable);
         return this._decoder.decode(content);
     }
 
-    _updateCpuUsage() {
+    _updateCpuUsage(text) {
         try {
-            const text = this._readTextFile('/proc/stat');
             const lines = text.split('\n');
 
             let currentCpuUsed = 0;
@@ -222,9 +267,8 @@ class SystemMonitorIndicator extends PanelMenu.Button {
         }
     }
 
-    _updateMemoryUsage() {
+    _updateMemoryUsage(text) {
         try {
-            const text = this._readTextFile('/proc/meminfo');
             const lines = text.split('\n');
             const needsMemory = this._showMemory;
             const needsSwap = this._showSwap;
@@ -296,6 +340,13 @@ class SystemMonitorIndicator extends PanelMenu.Button {
     }
 
     destroy() {
+        this._destroyed = true;
+
+        if (this._cancellable) {
+            this._cancellable.cancel();
+            this._cancellable = null;
+        }
+
         if (this._settingsChangedId && this._settings) {
             this._settings.disconnect(this._settingsChangedId);
             this._settingsChangedId = 0;
