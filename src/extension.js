@@ -3,7 +3,7 @@
  *
  * Author: Michael Knap
  * Description: Displays CPU, Memory and Swap usage on the top bar.
- * Version: 6.0
+ * Version: 7.0
  *
  * License: MIT License
  */
@@ -38,6 +38,7 @@ class SystemMonitorIndicator extends PanelMenu.Button {
         this._showMemory = true;
         this._showSwap = true;
         this._swapAvailable = false;
+        this._decoder = new TextDecoder('utf-8');
 
         this._box = new St.BoxLayout();
 
@@ -167,13 +168,15 @@ class SystemMonitorIndicator extends PanelMenu.Button {
             this._updateMemoryUsage();
     }
 
+    _readTextFile(path) {
+        const file = Gio.File.new_for_path(path);
+        const [, content] = file.load_contents(null);
+        return this._decoder.decode(content);
+    }
+
     _updateCpuUsage() {
         try {
-            const file = Gio.File.new_for_path('/proc/stat');
-            const [, content] = file.load_contents(null);
-
-            const decoder = new TextDecoder('utf-8');
-            const text = decoder.decode(content);
+            const text = this._readTextFile('/proc/stat');
             const lines = text.split('\n');
 
             let currentCpuUsed = 0;
@@ -221,11 +224,7 @@ class SystemMonitorIndicator extends PanelMenu.Button {
 
     _updateMemoryUsage() {
         try {
-            const file = Gio.File.new_for_path('/proc/meminfo');
-            const [, content] = file.load_contents(null);
-
-            const decoder = new TextDecoder('utf-8');
-            const text = decoder.decode(content);
+            const text = this._readTextFile('/proc/meminfo');
             const lines = text.split('\n');
             const needsMemory = this._showMemory;
             const needsSwap = this._showSwap;
