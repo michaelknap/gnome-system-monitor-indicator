@@ -3,7 +3,7 @@
  *
  * Author: Michael Knap
  * Description: Displays CPU, Memory and Swap usage on the top bar.
- * Version: 7.0
+ * Version: 8.0
  *
  * License: MIT License
  */
