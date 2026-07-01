@@ -11,6 +11,7 @@ You can also enable or disable each metric or lower the decimal precision from t
 ## Compatibility
 
 Known supported versions of GNOME:
+- 51
 - 50
 - 49
 - 48
